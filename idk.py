@@ -5,6 +5,7 @@ import numpy as np
 import BTH
 import time
 import keyboard
+import math
 
 currdir = "text-based OS"
 createNewFile = True
@@ -28,7 +29,7 @@ class Video:
     self.height:int = abs(height)
   
   def __len__(self):
-    return len(self.frames)/self.fps*1000
+    return math.floor(len(self.frames)/self.fps*1000)
 
   def __iter__(self):
     self.index = 0
@@ -60,20 +61,41 @@ class Video:
     
     out = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"DIVX"),self.getVideoDetails()[1],self.getVideoDetails()[2])
     for frame in self:
+      frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
       out.write(frame)
+    out.release()
   
   def __getitem__(self, index):
     return self.frames[index]
   
+class PlayingVideo(Video):
+  def __init__(self, fps, width, height):
+    super().__init__(fps, width, height)
+    self.current_frame = None
 
+  def append(self, frame):
+    if len(frame) != self.height and len(frame[0]) != self.width:
+      raise ValueError(f"invalid height and width values. Expected: height: {self.height} width: {self.width} \n Got: height: {len(frame)} width: {len(frame)}")
+    self.frames.append(frame)
+    if self.current_frame == 0:
+      self.changeCurrentFrame(0)
+  
+  def changeCurrentFrame(self, to):
+    try:
+      self.current_frame = self[to]
+    except IndexError:
+      print("Last or first frame reached")
+  
+  def printCurrentFrame(self):
+    print(self.current_frame)
 
 def kilosMegasYKWIM(data):
   if data < 1000:
     return f"{data}B"
   elif data > 999 and data < 1000000:
-    return f"{float(data/1000)}KB"
+    return f"{(data/1000)}KB"
   else:
-    return f"{float(data/1000000)}MB"
+    return f"{(data/1000000)}MB"
 
 def numberToText(pixel):
   if pixel < 40:
@@ -334,13 +356,14 @@ def takePhoto(where) -> None:
         cv2.imwrite(f"{currdir}/{where}", photo)
         print(f"Took photo and saved it to {currdir}/{where}")
         break
-      cv2.waitKey(25)
+      cv2.waitKey(50)
         
   
   except FileExistsError:
     print(f"file {where} already exists in directory {currdir}.")
 
 def captureVideo(where) -> None:
+  DIR:str = f"{currdir}/{where}"
   try:
     capture = cv2.VideoCapture(0)
 
@@ -373,14 +396,16 @@ def captureVideo(where) -> None:
          break 
       
       cv2.waitKey(int(1000//VIDEO.getVideoDetails()[1]))
+    capture.release()
 
     save = input("Save the video? (Y/N) \n")
 
     if save.strip() == "y" or save.strip() == "Y":
       details = VIDEO.getVideoDetails()
-      VIDEO.save(where)
+      VIDEO.save(DIR)
       print(f"Video saved to path {where}")
-      print(f"Video details: \n Duration: {len(VIDEO)/1000} seconds \n Framerate: {details[1]} \n Amount of frames: {len(details[0])} \n File size: {kilosMegasYKWIM(BTH.getSize(where))}")
+      print("")
+      print(f"Video details: \n Duration: {len(VIDEO)/1000} seconds \n Framerate: {details[1]} FPS \n Amount of frames: {len(details[0])} \n File size: {kilosMegasYKWIM((BTH.getSize(DIR)))}")
     else:
       print("Video discarded "+save)
 
@@ -389,7 +414,35 @@ def captureVideo(where) -> None:
   
   except ValueError as e:
     return print(e)
-   
+
+def viewVideo(path) -> None:
+  DIR:str = f"{currdir}/{path}"
+  if not os.path.exists(DIR):
+    return print(f"path {path} does not exist")
+  
+  cap = cv2.VideoCapture(DIR)
+  FPS = cap.get(cv2.CAP_PROP_FPS)
+  WIDTH = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+  HEIGHT = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+  VIDEO = PlayingVideo(int(FPS), int(WIDTH), int(HEIGHT))
+
+  while True:
+    frame, ret = cap.read()
+    print(type(ret))
+
+    if not ret.any():
+      break
+
+    VIDEO.append(frame)
+  cap.release()
+
+  print("Playing video in 3 seconds \n e to exit \n p to pause")
+  time.sleep(3)
+  for frame in VIDEO:
+    PlayingVideo.changeCurrentFrame(PlayingVideo.current_frame+1)
+    PlayingVideo.printCurrentFrame()
+    time.sleep(1000//PlayingVideo.getVideoDetails()[1])
+
 while True:
   cho = input(f"""
 
@@ -409,6 +462,7 @@ while True:
   tke: take a picture and save as an image file to file 
   rec: record a video and save to
   fmt: format OS (WARNING: YOU'LL LOSE ALL YOUR FILES)
+  viw: view recorded video
   """)
   print("")
 
@@ -453,6 +507,9 @@ while True:
 
   elif cho[:3] == "rec":
     captureVideo(cho[4:])
+  
+  elif cho[:3] == "viw":
+    viewVideo(cho[4:])
     
   else:
     print("command does not exist")

@@ -72,22 +72,30 @@ class PlayingVideo(Video):
   def __init__(self, fps, width, height):
     super().__init__(fps, width, height)
     self.current_frame = None
+    self.numbered_frame = None
 
   def append(self, frame):
     if len(frame) != self.height and len(frame[0]) != self.width:
       raise ValueError(f"invalid height and width values. Expected: height: {self.height} width: {self.width} \n Got: height: {len(frame)} width: {len(frame)}")
     self.frames.append(frame)
-    if self.current_frame == 0:
+    if self.current_frame is None:
       self.changeCurrentFrame(0)
-  
+ 
   def changeCurrentFrame(self, to):
-    try:
-      self.current_frame = self[to]
-    except IndexError:
-      print("Last or first frame reached")
+    if to >= len(self.frames):
+      raise IndexError("Last Frame Reached")
+    
+    if to < 0:
+      raise IndexError("'to' value is less than 0")
+    
+    self.current_frame = cv2.cvtColor(self[to], cv2.COLOR_BGR2GRAY)
+    self.numbered_frame = to
   
   def printCurrentFrame(self):
-    print(self.current_frame)
+    frame = self.current_frame
+    for line in frame:
+      mapped_line = [numberToText(pixel) for pixel in line]
+      print("".join(mapped_line))
 
 def kilosMegasYKWIM(data):
   if data < 1000:
@@ -420,6 +428,10 @@ def viewVideo(path) -> None:
   if not os.path.exists(DIR):
     return print(f"path {path} does not exist")
   
+  _, ext = os.path.splitext(path)
+  if ext != ".mp4" :
+    return print(f"video type {ext} not supported. Only .mp4 is supported")
+  
   cap = cv2.VideoCapture(DIR)
   FPS = cap.get(cv2.CAP_PROP_FPS)
   WIDTH = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -427,22 +439,47 @@ def viewVideo(path) -> None:
   VIDEO = PlayingVideo(int(FPS), int(WIDTH), int(HEIGHT))
 
   while True:
-    frame, ret = cap.read()
-    print(type(ret))
-
-    if not ret.any():
+    ret, frame = cap.read()
+    if not ret:
       break
-
     VIDEO.append(frame)
   cap.release()
 
   print("Playing video in 3 seconds \n e to exit \n p to pause")
   time.sleep(3)
   for frame in VIDEO:
-    PlayingVideo.changeCurrentFrame(PlayingVideo.current_frame+1)
-    PlayingVideo.printCurrentFrame()
-    time.sleep(1000//PlayingVideo.getVideoDetails()[1])
+    try:
+      print("")
+      VIDEO.printCurrentFrame()
+      VIDEO.changeCurrentFrame(VIDEO.numbered_frame+1)
+      if keyboard.is_pressed("e"):
+        print(" \n Video watching exited \n")
+        break
+      if keyboard.is_pressed("p"):
+        print(f" \n Video paused at frame {VIDEO.numbered_frame}, second {float(VIDEO.numbered_frame/FPS)}  \n 'u' to unpause \n hold 'b' to rewind \n hold 'f' to go foward")
+        while not keyboard.is_pressed("u"):
+          if keyboard.is_pressed("f"):
+            if VIDEO.numbered_frame == len(VIDEO.getVideoDetails()[0])-1:
+              VIDEO.changeCurrentFrame(0)
+            else:
+              VIDEO.changeCurrentFrame(VIDEO.numbered_frame+1)
+            VIDEO.printCurrentFrame()
+            print(f" \n Video paused at frame {VIDEO.numbered_frame}, second {float(VIDEO.numbered_frame/FPS)}  \n 'u' to unpause \n hold 'b' to rewind \n hold 'f' to go foward")
 
+          if keyboard.is_pressed("b"):
+            if VIDEO.numbered_frame == 0:
+              VIDEO.changeCurrentFrame(len(VIDEO.getVideoDetails()[0])-1)
+            else:
+              VIDEO.changeCurrentFrame(VIDEO.numbered_frame-1)
+            VIDEO.printCurrentFrame()
+            print(f" \n Video paused at frame {VIDEO.numbered_frame}, second {float(VIDEO.numbered_frame/FPS)}  \n 'u' to unpause \n hold 'b' to rewind \n hold 'f' to go foward")
+      time.sleep(1/VIDEO.getVideoDetails()[1])
+    except IndexError as e:
+      print("")
+      print(e)
+  details = VIDEO.getVideoDetails()
+  print(f"Video details: \n Duration: {len(VIDEO)/1000} seconds \n Framerate: {details[1]} FPS \n Amount of frames: {len(details[0])} \n File size: {kilosMegasYKWIM((BTH.getSize(DIR)))}")
+  
 while True:
   cho = input(f"""
 

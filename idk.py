@@ -422,6 +422,83 @@ def captureVideo(where) -> None:
   
   except ValueError as e:
     return print(e)
+  
+def animate(where) -> None:
+  DIR:str = f"{currdir}/{where}"
+  try:
+    _, ext = os.path.splitext(where)
+    if ext != ".mp4" :
+      return print(f"video type {ext} not supported. Only .mp4 is supported")
+    FPS = int(input("Frames per second for this animation: "))
+    HEIGHT = int(input("height for this animation: "))
+    WIDTH = int(input("width for this animation: "))
+    VIDEO = Video(FPS, WIDTH, HEIGHT)
+
+    photo = []
+    charPhoto = []
+    keepAnimating = "Y"
+    frameCount = 1
+    while keepAnimating == "Y" or keepAnimating == "y":
+      print(f"\n current frame: {frameCount} \n current animation length: {frameCount/FPS} seconds")
+      for line in range(HEIGHT):
+        line1 = []
+        charLine = []
+        try:
+          for pixel in range(WIDTH):
+            inp = input(f"darkness of pixel {line}x{pixel} (9 lightest 0 darkest): \n type 'e' to exit \n")
+            if inp == "e":
+              raise InterruptedError("Image creation exited")
+            darkness = int(inp)*27
+              
+            while (darkness > 255 or darkness < 0):
+              
+              print(f"Expected darkness to be from 0 to 9. darkness={inp} ")
+              inp = input(f"darkness of pixel {line}x{pixel} (9 lightest 0 darkest): \n type 'e' to exit \n")
+              if inp == "e":
+                raise InterruptedError("Image creation exited")
+              darkness = int(inp)*27
+              
+            line1.append(darkness)
+            charLine.append(numberToText(darkness))
+            print(" \n currently painted photo: ")
+            
+            for list in charPhoto:
+              print("".join(list))
+            if pixel == WIDTH-1:
+              print("".join(charLine)+"\n[]")
+            else:
+              print("".join(charLine)+"[]")
+            
+            print("")          
+          charPhoto.append(charLine)
+          photo.append(line1)
+        except ValueError as e:
+            print(f"Expected darkness to be number type. Detailed error: {e} \n Image creation exited due to error.")
+            break
+        except InterruptedError as e:
+            print(e)
+            break
+      VIDEO.append(np.array(photo, np.uint8))
+      photo = []
+      charPhoto = []
+      keepAnimating = input("keep animating? (Y/N)")
+      frameCount+=1
+  
+    save = input("save the animation? (Y/N)")
+    if save.strip() == "y" or save.strip() == "Y":
+      details = VIDEO.getVideoDetails()
+      VIDEO.save(DIR)
+      print(f"Video saved to path {where}")
+      print("")
+      print(f"Video details: \n Duration: {len(VIDEO)/1000} seconds \n Framerate: {details[1]} FPS \n Amount of frames: {len(details[0])} \n File size: {kilosMegasYKWIM((BTH.getSize(DIR)))}")
+    else:
+      print("Video discarded "+save)
+
+  except FileExistsError as e:
+    return print(e)
+  
+  except ValueError as e:
+    return print(e)
 
 def viewVideo(path) -> None:
   DIR:str = f"{currdir}/{path}"
@@ -498,8 +575,9 @@ while True:
   pnt: paint and save as and image file to file 
   tke: take a picture and save as an image file to file 
   rec: record a video and save to
-  fmt: format OS (WARNING: YOU'LL LOSE ALL YOUR FILES)
   viw: view recorded video
+  anm: animate a video and save to:
+  fmt: format OS (WARNING: YOU'LL LOSE ALL YOUR FILES)
   """)
   print("")
 
@@ -547,6 +625,9 @@ while True:
   
   elif cho[:3] == "viw":
     viewVideo(cho[4:])
+  
+  elif cho[:3]:
+    animate(cho[4:])
     
   else:
     print("command does not exist")
